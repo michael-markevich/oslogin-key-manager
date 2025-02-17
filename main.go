@@ -192,19 +192,11 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 	// Retrieve the access token from the cookie
 	cookie, err := r.Cookie("session_token")
 	if err != nil {
-		// User is NOT authenticated → Show login button
-		html := `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Login</title>
-</head>
-<body>
-<a href="/auth/login">Login with Google</a>
-</body>
-</html>`
 		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(html))
+		renderedIndex := templatesPtr.ExecuteTemplate(w, "login.html", nil)
+		if renderedIndex != nil { /* handle error */ 
+			http.Error(w, "Unable to render template", http.StatusBadRequest)
+		}
 		return
 	}
 
@@ -231,6 +223,7 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 // loginHandler redirects the user to Google's OAuth2 consent page
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	// TODO: random-state
 	authURL := oauthConfig.AuthCodeURL("random-state", oauth2.AccessTypeOffline)
 	http.Redirect(w, r.WithContext(ctx), authURL, http.StatusFound)
 }
@@ -245,7 +238,7 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		Expires:  time.Now().Add(-time.Hour), // Set expiration in the past
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, // Set to true in production with HTTPS
+		Secure:   false, // TODO: true
 	})
 
 	// Redirect to the home page
@@ -310,7 +303,7 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 		Expires:  token.Expiry,
 		Path:     "/",
 		HttpOnly: true,  // Prevent JavaScript access
-		Secure:   false, // Set to true in production with HTTPS
+		Secure:   false, // TODO: true
 	})
 
 	// Send a login event to logger
