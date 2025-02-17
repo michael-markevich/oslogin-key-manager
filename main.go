@@ -62,6 +62,16 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+type IndexTemplate struct {
+    Name  string
+    Email string
+    Photo string
+}
+
+//go:embed templates
+var templates embed.FS
+var templatesPtr *template.Template
+
 // Global encryption key for secrets
 var encryptionKey []byte
 var jwtSecret []byte
@@ -205,113 +215,17 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Display user information
-	html := fmt.Sprintf(`<!DOCTYPE html><html>
-		<head>
-		    <style>
-        #formContainer {
-            display: none;
-            border: 1px solid #ccc;
-            padding: 1px;
-            margin-top: 1px;
-            width: 500px;
-            background-color: #f9f9f9;
-        }
-    </style>
-		</head>
-		<body>
-		<h1>Welcome, %s</h1>
-		<button onclick="window.location.href='/auth/logout';">Logout</button>
-    <button id="addButton">ADD</button>
-    <div id="formContainer">
-        <textarea id="textInput" placeholder="Enter text here..."></textarea><br>
-        <button id="submitButton">Submit</button>
-        <button id="cancelButton">Cancel</button>
-    </div>
-		<div id="key-list-element">
-	    <h3>SSH Keys</h3>
-	    <table border="1">
-	        <thead>
-	            <tr>
-	                <th></th>
-	                <th>Type</th>
-	                <th>Public Key</th>
-	                <th>Comment</th>
-	            </tr>
-	        </thead>
-	        <tbody id="ssh-key-table"></tbody>
-	    </table>
-    	</div>
-
-	    <script>
-		    document.getElementById('addButton').addEventListener('click', function() {
-	            document.getElementById('formContainer').style.display = 'block';
-	        });
-
-	        document.getElementById('cancelButton').addEventListener('click', function() {
-	        	let textArea = document.getElementById('textInput');
-	        	textArea.value = '';
-	            document.getElementById('formContainer').style.display = 'none';
-	        });
-
-			document.getElementById('submitButton').addEventListener('click', async function() {
-			    let textArea = document.getElementById('textInput');
-			    let data = textArea.value;
-			    if (!data) return;
-			    try {
-			        let response = await fetch("/keys", {
-			            method: "POST",
-			            body: JSON.stringify({ ssh_key: data }),
-			            headers: { "Content-Type": "application/json" }
-			        });
-			        
-			        if (!response.ok) {
-			            throw new Error("HTTP error! Status: response.status");
-			        }
-			        
-			        textArea.value = '';
-			        document.getElementById('formContainer').style.display = 'none';
-			        location.reload();
-			    } catch (error) {
-			        console.error("Error submitting data:", error);
-			    }
-			});
-
-	        async function fetchSSHKeys() {
-	            let res = await fetch("/keys");
-	            let data = await res.json();
-	            let table = document.getElementById("ssh-key-table");
-                table.innerHTML = "";
-
-	            if (data.ssh_public_keys) {
-	                Object.entries(data.ssh_public_keys).forEach(([keyId, keyData]) => {
-	                	let row = document.createElement("tr");
-	                	let [key_type, public_key, comment] = keyData.key.split(" ");
-   	                    row.innerHTML = '<td><button onclick="deleteSSHKey(\'' + keyId + '\')">X</button></td><td>' + key_type + '</td><td>' + public_key + '</td><td>' + comment + '</td>';
-	                    table.appendChild(row);
-	                });	
-	            } else {
-	                table.innerHTML = "<tr><td colspan='4'>No SSH keys found.</td></tr>";
-	            }
-	        }
-
-	        async function deleteSSHKey(keyId) {
-	            if (!keyId) return;
-
-	            const confirmation = confirm("Are you sure you want to delete this SSH key?");
-    			if (!confirmation) return;
-
-	            await fetch("/keys", { method: "DELETE", body: JSON.stringify({ key_id: keyId }), headers: { "Content-Type": "application/json" }});
-				location.reload(true);
-	        }
-
-	        // Fetch SSH keys automatically on page load
-        	document.addEventListener("DOMContentLoaded", fetchSSHKeys);
-	    </script>
-	</body></html>`, claims.Email)
+    pageData := IndexTemplate{
+        Name: claims.Name,
+        Email: claims.Email,
+        Photo: claims.Photo,
+    }
 
 	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+	renderedIndex := templatesPtr.ExecuteTemplate(w, "index.html", pageData)
+	if renderedIndex != nil { /* handle error */ 
+		http.Error(w, "Unable to render template", http.StatusBadRequest)
+	}
 }
 
 // loginHandler redirects the user to Google's OAuth2 consent page
@@ -503,7 +417,7 @@ func keysHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Print the response from the API (optional)
-		log.Printf("SSH key uploaded: %v\n", resp)
+		log.Printf("SSH key uploaded: %v\n", resp.Name)
 
 	case "DELETE":
 		// Configure JSON decoder
@@ -568,6 +482,12 @@ func getUserInfo(ctx context.Context, token *oauth2.Token) (map[string]interface
 // The standard initialization function
 func init() {
 	var init_err error
+
+	// Load HTML templates
+	templatesPtr, init_err = template.ParseFS(templates, "templates/*.html")
+	if init_err != nil {
+		log.Fatalf("Unable to parse templates: %s", init_err)
+	}
 
 	// Generate a random encryption key (TODO: use a file/variable for persistence)
 	encryptionKey, init_err = generateKey()

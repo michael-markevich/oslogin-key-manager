@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+	<head>
+	    <style>
+    		#formContainer {
+		        display: none;
+		        border: 1px solid #ccc;
+		        padding: 1px;
+		        margin-top: 1px;
+		        width: 100%;
+		        background-color: #f9f9f9;
+		    }
+		</style>
+	</head>
+<body>
+	<h1>Welcome, {{.Name}}!</h1>
+	<div id="toolbar-element">
+		<button id="addButton">Upload Key</button>
+		<button onclick="window.location.href='/auth/logout';">Logout</button>
+	</div>
+
+	<div id="formContainer">
+		<textarea id="textInput" placeholder="SSH public key"></textarea><br>
+		<button id="submitButton">Submit</button>
+		<button id="cancelButton">Cancel</button>
+	</div>
+	<div id="key-list-element">
+		<table border="1">
+		    <thead>
+		        <tr>
+		            <th>Type</th>
+		            <th>Public Key</th>
+		            <th>Comment</th>
+		           	<th></th>
+		        </tr>
+		    </thead>
+		    <tbody id="ssh-key-table"></tbody>
+		</table>
+	</div>
+	<script>
+	    document.getElementById('addButton').addEventListener('click', function() {
+	        document.getElementById('formContainer').style.display = 'block';
+	    });
+
+	    document.getElementById('cancelButton').addEventListener('click', function() {
+	    	let textArea = document.getElementById('textInput');
+	    	textArea.value = '';
+	        document.getElementById('formContainer').style.display = 'none';
+	    });
+
+		document.getElementById('submitButton').addEventListener('click', async function() {
+		    let textArea = document.getElementById('textInput');
+		    let data = textArea.value;
+		    if (!data) return;
+		    try {
+		        let response = await fetch("/keys", {
+		            method: "POST",
+		            body: JSON.stringify({ ssh_key: data }),
+		            headers: { "Content-Type": "application/json" }
+		        });
+		        
+		        if (!response.ok) {
+		            throw new Error("HTTP error! Status: response.status");
+		        }
+		        
+		        textArea.value = '';
+		        document.getElementById('formContainer').style.display = 'none';
+		        location.reload();
+		    } catch (error) {
+		        console.error("Error submitting data:", error);
+		    }
+		});
+
+	    async function fetchSSHKeys() {
+	        let res = await fetch("/keys");
+	        let data = await res.json();
+	        let table = document.getElementById("ssh-key-table");
+	        table.innerHTML = "";
+
+	        if (data.ssh_public_keys) {
+	            Object.entries(data.ssh_public_keys).forEach(([keyId, keyData]) => {
+	            	let row = document.createElement("tr");
+	            	let [key_type, public_key, comment] = keyData.key.split(" ");
+	                    row.innerHTML = '<td>' + key_type + '</td><td>' + public_key + '</td><td>' + comment + '</td><td><button onclick="deleteSSHKey(\'' + keyId + '\')">X</button></td>';
+	                table.appendChild(row);
+	            });	
+	        } else {
+	            table.innerHTML = "<tr><td colspan='4'>No SSH keys found.</td></tr>";
+	        }
+	    }
+
+	    async function deleteSSHKey(keyId) {
+	        if (!keyId) return;
+
+	        const confirmation = confirm("Are you sure you want to delete this SSH key?");
+			if (!confirmation) return;
+
+	        await fetch("/keys", { method: "DELETE", body: JSON.stringify({ key_id: keyId }), headers: { "Content-Type": "application/json" }});
+			location.reload(true);
+	    }
+
+	    // Fetch SSH keys automatically on page load
+		document.addEventListener("DOMContentLoaded", fetchSSHKeys);
+	</script>
+</body>
+</html>
