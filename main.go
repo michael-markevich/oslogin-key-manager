@@ -35,12 +35,12 @@ import (
 	"time"
 
 	"cloud.google.com/go/oslogin/apiv1"
+	osloginpb "cloud.google.com/go/oslogin/apiv1/osloginpb"
 	commonpb "cloud.google.com/go/oslogin/common/commonpb"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
-	osloginpb "cloud.google.com/go/oslogin/apiv1/osloginpb"
 )
 
 // HTTP POST Request structure
@@ -63,9 +63,9 @@ type Claims struct {
 }
 
 type IndexTemplate struct {
-    Name  string
-    Email string
-    Photo string
+	Name  string
+	Email string
+	Photo string
 }
 
 //go:embed templates
@@ -194,7 +194,7 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "text/html")
 		renderedIndex := templatesPtr.ExecuteTemplate(w, "login.html", nil)
-		if renderedIndex != nil { /* handle error */ 
+		if renderedIndex != nil { /* handle error */
 			http.Error(w, "Unable to render template", http.StatusBadRequest)
 		}
 		return
@@ -207,15 +207,15 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    pageData := IndexTemplate{
-        Name: claims.Name,
-        Email: claims.Email,
-        Photo: claims.Photo,
-    }
+	pageData := IndexTemplate{
+		Name:  claims.Name,
+		Email: claims.Email,
+		Photo: claims.Photo,
+	}
 
 	w.Header().Set("Content-Type", "text/html")
 	renderedIndex := templatesPtr.ExecuteTemplate(w, "index.html", pageData)
-	if renderedIndex != nil { /* handle error */ 
+	if renderedIndex != nil { /* handle error */
 		http.Error(w, "Unable to render template", http.StatusBadRequest)
 	}
 }
