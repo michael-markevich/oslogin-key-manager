@@ -249,6 +249,8 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// TODO: check for state
+
 	// Retrieve the authorization code from the request
 	code := r.URL.Query().Get("code")
 	if code == "" {
