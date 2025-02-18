@@ -100,8 +100,7 @@ func generateKey() ([]byte, error) {
 func generateState() string {
 	state, err := generateKey()
 	if err != nil {
-		log.Println("Error generating a secure random string: %s", err)
-		return "fallback-non-random-string"
+		log.Fatalf("Error generating a secure random string: %s", err)
 	}
 	return base64.URLEncoding.EncodeToString(state)
 }
