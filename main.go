@@ -455,7 +455,7 @@ func keysHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Print the response from the API (optional)
-		log.Printf("SSH key uploaded: %v\n", resp.Name)
+		log.Printf("SSH key uploaded: %v", resp.Name)
 
 	case "DELETE":
 		// Configure JSON decoder
@@ -489,7 +489,7 @@ func keysHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Print success message
-		log.Printf("SSH key deleted: %v\n", keyName)
+		log.Printf("SSH key deleted: %v", keyName)
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -570,8 +570,14 @@ func init() {
 		Endpoint:     google.Endpoint,
 	}
 
-	// This should be set globally to True
-	secureCookie = false
+	// Allow tweaking Secure cookie flag for development
+	insecureCookie := os.Getenv("INSECURE_COOKIE")
+	if insecureCookie == "" {
+		secureCookie = true
+	} else {
+		log.Printf("Warning: setting Secure cookie flag to FALSE!")
+		secureCookie = false
+	}
 }
 
 func main() {
@@ -590,7 +596,7 @@ func main() {
 	}
 
 	// Start the HTTP server
-	log.Printf("Starting application server on '%s'\n", listenAddress)
+	log.Printf("Starting application server on '%s'", listenAddress)
 	err := server.ListenAndServe()
 	if err != nil {
 		panic(err)
