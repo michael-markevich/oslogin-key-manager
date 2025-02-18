@@ -1,0 +1,14 @@
+[Unit]
+Description=OS Login Key Manager
+After=network.target
+
+[Service]
+ExecStart=/usr/sbin/oslogin-key-manager
+WorkingDirectory=/var/empty
+Restart=on-failure
+User=oslogin
+Group=oslogin
+EnvironmentFile=/etc/oslogin-key-manager.env
+
+[Install]
+WantedBy=multi-user.target
