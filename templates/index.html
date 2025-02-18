@@ -1,16 +1,44 @@
 <!DOCTYPE html>
 <html>
 	<head>
+            <title>OS Login SSH Key Manager</title>
 	    <style>
-    		#formContainer {
-		        display: none;
-		        border: 1px solid #ccc;
-		        padding: 1px;
-		        margin-top: 1px;
-		        width: 100%;
-		        background-color: #f9f9f9;
-		    }
-		</style>
+div {
+    width: 100%;
+}
+
+#formContainer {
+    display: none;
+    border: 1px solid #ccc;
+    padding: 1px;
+    margin-top: 1px;
+    background-color: #f9f9f9;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+textarea {
+    width: 100%;
+    height: 100%;
+    resize: none; 
+    box-sizing: border-box;
+}
+
+table {
+    margin-top: 40px;
+    border-collapse: collapse;
+    background: #f8f8f8;
+}
+
+td {
+    spacing: 5px;
+    padding: 5px;
+    text-align: center;
+    background: white;
+}
+
+            	
+	    </style>
 	</head>
 <body>
 	<h1>Welcome, {{.Name}}!</h1>
@@ -20,12 +48,13 @@
 	</div>
 
 	<div id="formContainer">
-		<textarea id="textInput" placeholder="SSH public key"></textarea><br>
+		<textarea id="ssh-key-input" placeholder="type base64-encoded-key optional-comment"></textarea>
+		<br>
 		<button id="submitButton">Submit</button>
 		<button id="cancelButton">Cancel</button>
-	</div>
+	</div>	
 	<div id="key-list-element">
-		<table border="1">
+		<table>
 		    <thead>
 		        <tr>
 		            <th>Type</th>
@@ -38,38 +67,52 @@
 		</table>
 	</div>
 	<script>
+	    function validateSSHKey(textarea, submitBtn) {
+	        const sshKeyPattern = /^(ssh-(rsa|dss|ed25519)|ecdsa-sha2-nistp(256|384|521))\s+[A-Za-z0-9+/=]+\s*.*$/;
+
+	        // Check if the input matches the SSH public key pattern
+	        if (sshKeyPattern.test(textarea.value.trim())) {
+	            textarea.style.border = "2px solid green";
+	            submitBtn.disabled = false;
+	        } else {
+	            textarea.style.border = "2px solid red";
+	            submitBtn.disabled = true;
+	        }
+	    }
+
 	    document.getElementById('addButton').addEventListener('click', function() {
 	        document.getElementById('formContainer').style.display = 'block';
 	    });
 
 	    document.getElementById('cancelButton').addEventListener('click', function() {
-	    	let textArea = document.getElementById('textInput');
+	    	let textArea = document.getElementById('ssh-key-input');
 	    	textArea.value = '';
+	    	textArea.style.border = '';
 	        document.getElementById('formContainer').style.display = 'none';
 	    });
 
-		document.getElementById('submitButton').addEventListener('click', async function() {
-		    let textArea = document.getElementById('textInput');
-		    let data = textArea.value;
-		    if (!data) return;
-		    try {
-		        let response = await fetch("/keys", {
-		            method: "POST",
-		            body: JSON.stringify({ ssh_key: data }),
-		            headers: { "Content-Type": "application/json" }
-		        });
+	    document.getElementById('submitButton').addEventListener('click', async function() {
+		let textArea = document.getElementById('ssh-key-input');
+		let data = textArea.value;
+		if (!data) return;
+		try {
+		    let response = await fetch("/keys", {
+		        method: "POST",
+		        body: JSON.stringify({ ssh_key: data }),
+		        headers: { "Content-Type": "application/json" }
+		    });
 		        
-		        if (!response.ok) {
-		            throw new Error("HTTP error! Status: response.status");
-		        }
-		        
-		        textArea.value = '';
-		        document.getElementById('formContainer').style.display = 'none';
-		        location.reload();
-		    } catch (error) {
-		        console.error("Error submitting data:", error);
+		    if (!response.ok) {
+		        throw new Error("HTTP error! Status: response.status");
 		    }
-		});
+		        
+		    textArea.value = '';
+		    document.getElementById('formContainer').style.display = 'none';
+		    location.reload();
+		} catch (error) {
+		    console.error("Error submitting data:", error);
+		}
+	    });
 
 	    async function fetchSSHKeys() {
 	        let res = await fetch("/keys");
@@ -100,7 +143,20 @@
 	    }
 
 	    // Fetch SSH keys automatically on page load
-		document.addEventListener("DOMContentLoaded", fetchSSHKeys);
+	    document.addEventListener("DOMContentLoaded", fetchSSHKeys);
+
+            // Attach event listener to textarea
+            document.addEventListener("DOMContentLoaded", function() {
+		const textarea = document.getElementById("ssh-key-input");
+	        const submitBtn = document.getElementById("submitButton");
+
+		// Initially disable submit button
+		submitBtn.disabled = true;
+    
+        	textarea.addEventListener("input", function() {
+            	    validateSSHKey(textarea, submitBtn);
+		});
+            });
 	</script>
 </body>
 </html>

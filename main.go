@@ -1,5 +1,3 @@
-// This package implements a minimalistic SSH key manager for OS Login (Google Cloud Platform)
-
 // Copyright 2025 Michael Markevich
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// This package implements a minimalistic SSH key manager for OS Login (Google Cloud Platform)
 package main
 
 import (
@@ -43,17 +42,19 @@ import (
 	"google.golang.org/api/option"
 )
 
-// HTTP POST Request structure
-// TODO: add expiration time
-type HttpPostRequest struct {
-	SshKey string `json:"ssh_key"`
+// TODO: add key expiration time
+
+// HTTPPostRequest - POST request structure
+type HTTPPostRequest struct {
+	SSHKey string `json:"ssh_key"`
 }
 
-type HttpDeleteRequest struct {
-	KeyId string `json:"key_id"`
+// HTTPDeleteRequest - DELETE request structure
+type HTTPDeleteRequest struct {
+	KeyID string `json:"key_id"`
 }
 
-// JWT claims structure
+// Claims - JWT claims structure
 type Claims struct {
 	Email string `json:"email"`
 	Token string `json:"token"`
@@ -62,6 +63,7 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+// IndexTemplate - a structure for an index page template
 type IndexTemplate struct {
 	Name  string
 	Email string
@@ -79,8 +81,10 @@ var jwtSecret []byte
 // OAuth2 configuration
 var oauthConfig *oauth2.Config
 
+// Service configuration variables
 var listenHost string
 var listenPort string
+var secureCookie bool
 
 // Generate a random 32-byte encryption key
 func generateKey() ([]byte, error) {
@@ -90,6 +94,16 @@ func generateKey() ([]byte, error) {
 		return nil, err
 	}
 	return key, nil
+}
+
+// Generate a secure random state string
+func generateState() string {
+	state, err := generateKey()
+	if err != nil {
+		log.Println("Error generating a secure random string: %s", err)
+		return "fallback-non-random-string"
+	}
+	return base64.URLEncoding.EncodeToString(state)
 }
 
 // Encrypt data using AES-GCM
@@ -223,8 +237,19 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 // loginHandler redirects the user to Google's OAuth2 consent page
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	// TODO: random-state
-	authURL := oauthConfig.AuthCodeURL("random-state", oauth2.AccessTypeOffline)
+
+	// Generate and save random state
+	state := generateState()
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_state",
+		Value:    state,
+		MaxAge:   300,
+		HttpOnly: true,
+		Secure:   secureCookie,
+		Path:     "/",
+	})
+
+	authURL := oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
 	http.Redirect(w, r.WithContext(ctx), authURL, http.StatusFound)
 }
 
@@ -238,7 +263,7 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		Expires:  time.Now().Add(-time.Hour), // Set expiration in the past
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, // TODO: true
+		Secure:   secureCookie,
 	})
 
 	// Redirect to the home page
@@ -249,7 +274,19 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// TODO: check for state
+	// Fetch OAuth2 state cookie
+	cookie, err := r.Cookie("session_state")
+	if err != nil {
+		http.Error(w, "State cookie not found", http.StatusBadRequest)
+		return
+	}
+
+	// Compare with state from the query parameters
+	state := r.URL.Query().Get("state")
+	if state != cookie.Value {
+		http.Error(w, "Invalid OAuth state", http.StatusUnauthorized)
+		return
+	}
 
 	// Retrieve the authorization code from the request
 	code := r.URL.Query().Get("code")
@@ -304,8 +341,8 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 		Value:    jwToken,
 		Expires:  token.Expiry,
 		Path:     "/",
-		HttpOnly: true,  // Prevent JavaScript access
-		Secure:   false, // TODO: true
+		HttpOnly: true,
+		Secure:   secureCookie,
 	})
 
 	// Send a login event to logger
@@ -372,10 +409,14 @@ func keysHandler(w http.ResponseWriter, r *http.Request) {
 		resp, err := client.GetLoginProfile(ctx, req)
 		if err != nil {
 			log.Printf("Failed to get OS login profile: %v", err)
+			return
 		}
 
 		// Return the retrieved user login profile
-		json.NewEncoder(w).Encode(resp)
+		err = json.NewEncoder(w).Encode(resp)
+		if err != nil {
+			http.Error(w, "Failed to encode JSON response", http.StatusInternalServerError)
+		}
 
 	case "POST":
 		// Configure JSON decoder
@@ -383,8 +424,8 @@ func keysHandler(w http.ResponseWriter, r *http.Request) {
 		decoder.DisallowUnknownFields()
 
 		// Parse JSON request
-		var reqHttp HttpPostRequest
-		err = decoder.Decode(&reqHttp)
+		var reqHTTP HTTPPostRequest
+		err = decoder.Decode(&reqHTTP)
 		if err != nil {
 			http.Error(w, "Unable to parse JSON", http.StatusBadRequest)
 			return
@@ -397,8 +438,10 @@ func keysHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// TODO: SSH public key validation on the backend
+
 		// Create the request to upload the SSH public key
-		newKey := &commonpb.SshPublicKey{Key: reqHttp.SshKey}
+		newKey := &commonpb.SshPublicKey{Key: reqHTTP.SSHKey}
 		req := &osloginpb.CreateSshPublicKeyRequest{
 			Parent:       myUser, // The user identifier in the format "users/{email}"
 			SshPublicKey: newKey, // The SSH public key
@@ -420,8 +463,8 @@ func keysHandler(w http.ResponseWriter, r *http.Request) {
 		decoder.DisallowUnknownFields()
 
 		// Parse JSON request
-		var reqHttp HttpDeleteRequest
-		err = decoder.Decode(&reqHttp)
+		var reqHTTP HTTPDeleteRequest
+		err = decoder.Decode(&reqHTTP)
 		if err != nil {
 			http.Error(w, "Unable to parse JSON", http.StatusBadRequest)
 			return
@@ -435,7 +478,7 @@ func keysHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Delete the uploaded SSH key using its fingerprint
-		keyName := fmt.Sprintf("%s/sshPublicKeys/%s", myUser, reqHttp.KeyId)
+		keyName := fmt.Sprintf("%s/sshPublicKeys/%s", myUser, reqHTTP.KeyID)
 		deleteReq := &osloginpb.DeleteSshPublicKeyRequest{
 			Name: keyName,
 		}
@@ -451,7 +494,6 @@ func keysHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
-
 }
 
 // getUserInfo retrieves the authenticated user's profile information from Google
@@ -476,24 +518,24 @@ func getUserInfo(ctx context.Context, token *oauth2.Token) (map[string]interface
 
 // The standard initialization function
 func init() {
-	var init_err error
+	var initErr error
 
 	// Load HTML templates
-	templatesPtr, init_err = template.ParseFS(templates, "templates/*.html")
-	if init_err != nil {
-		log.Fatalf("Unable to parse templates: %s", init_err)
+	templatesPtr, initErr = template.ParseFS(templates, "templates/*.html")
+	if initErr != nil {
+		log.Fatalf("Unable to parse templates: %s", initErr)
 	}
 
 	// Generate a random encryption key (TODO: use a file/variable for persistence)
-	encryptionKey, init_err = generateKey()
-	if init_err != nil {
-		log.Fatalf("Error generating an encryption key: %s", init_err)
+	encryptionKey, initErr = generateKey()
+	if initErr != nil {
+		log.Fatalf("Error generating an encryption key: %s", initErr)
 	}
 
 	// Generate a random JWT secret (TODO: use a file/variable for persistence)
-	jwtSecret, init_err = generateKey()
-	if init_err != nil {
-		log.Fatalf("Error generating a JWT secret: %s", init_err)
+	jwtSecret, initErr = generateKey()
+	if initErr != nil {
+		log.Fatalf("Error generating a JWT secret: %s", initErr)
 	}
 
 	// Read environment variables
@@ -512,13 +554,14 @@ func init() {
 		log.Fatalf("Environment variable OAUTH2_REDIRECT_URL is not set!")
 	}
 
-	// If the LISTEN_HOST variable doesn't exist, we listen to all ports
+	// If the LISTEN_HOST variable doesn't exist, we listen on all interfaces
 	listenHost = os.Getenv("LISTEN_HOST")
 	listenPort = os.Getenv("LISTEN_PORT")
 	if listenPort == "" {
 		listenPort = "8080"
 	}
 
+	// OAuth2 configuration
 	oauthConfig = &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
@@ -526,6 +569,9 @@ func init() {
 		Scopes:       []string{"https://www.googleapis.com/auth/cloud-platform", "email", "profile", "openid"},
 		Endpoint:     google.Endpoint,
 	}
+
+	// This should be set globally to True
+	secureCookie = false
 }
 
 func main() {
