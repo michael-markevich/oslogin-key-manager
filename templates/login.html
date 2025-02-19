@@ -1,9 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>OS Login SSH Key Manager</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OS Login SSH Key Manager</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+        .container {
+            text-align: center;
+        }
+        .login-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .login-btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
 </head>
 <body>
-<a href="/auth/login">Login with Google</a>
+    <div class="container">
+        <svg width="100" height="100" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17 10H7V7C7 4.24 9.24 2 12 2C14.76 2 17 4.24 17 7V10ZM14.5 15C14.5 16.38 13.38 17.5 12 17.5C10.62 17.5 9.5 16.38 9.5 15C9.5 13.62 10.62 12.5 12 12.5C13.38 12.5 14.5 13.62 14.5 15ZM6 10H18C19.1 10 20 10.9 20 12V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V12C4 10.9 4.9 10 6 10ZM14 15C14 13.9 13.1 13 12 13C10.9 13 10 13.9 10 15C10 16.1 10.9 17 12 17C13.1 17 14 16.1 14 15Z" fill="#000"/>
+        </svg>
+        <br>
+        <button class="login-btn" onclick="window.location.href='/auth/login'">Login</button>
+    </div>
 </body>
 </html>
+
